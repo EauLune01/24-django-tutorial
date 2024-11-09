@@ -1,15 +1,22 @@
 # Create your views here.
-from django.contrib.auth import login, authenticate
-from rest_framework import status, generics
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.generics import GenericAPIView
-from rest_framework.mixins import ListModelMixin, DestroyModelMixin, CreateModelMixin
+from rest_framework.mixins import (
+    ListModelMixin,
+    DestroyModelMixin,
+    CreateModelMixin,
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
-from main.models import Study, StudyParticipation, User
-from main.serializers import StudySerializer, LoginSerializer, UserSerializer, StudyParticipationSerializer
-
+from main.models import Study, StudyParticipation
+from django.contrib.auth import login, authenticate
+from main.serializers import (
+    StudySerializer,
+    LoginSerializer,
+    UserSerializer,
+    UserSerializer, StudyParticipationSerializer,
+)
+from rest_framework import generics, status
 
 
 class LoginView(GenericAPIView):
@@ -75,18 +82,27 @@ class StudyParticipationListView(
     """
 
     ### assignment3: 이곳에 과제를 작성해주세요
-    serializer_class = StudyParticipationSerializer
     permission_classes = [IsAuthenticated]
+    queryset = StudyParticipation.objects.all()
+    serializer_class = StudyParticipationSerializer
 
-    def get_queryset(self):
-        return StudyParticipation.objects.filter(user=self.request.user)
+    def filter_queryset(self, queryset):
+        if self.request.method == "GET":
+            queryset = queryset.filter(user=self.request.user)
+        return queryset
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(user=request.user)  # user를 request.user로 설정하여 저장
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = StudyParticipationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # 요청한 사용자와 serializer의 user 필드 비교
+        if request.user != serializer.validated_data["user"]:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        return self.create(request, *args, **kwargs)
     ### end assignment3
 
 
@@ -114,6 +130,5 @@ class StudyParticipationView(
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         # 현재 사용자 소유의 경우에만 삭제 진행
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self.destroy(request, *args, **kwargs)
     ### end assignment3
